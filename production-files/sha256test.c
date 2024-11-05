@@ -1,0 +1,423 @@
+/** 
+    @file sha256test.c
+    @author dbsturgi
+    Unit tests for the sha256 implementation.
+*/
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <stdbool.h>
+#include <string.h>
+#include "sha256.h"
+
+/** Number of tests we should have, if they're all turned on. */
+#define EXPECTED_TOTAL 55
+
+/** Total number or tests we tried. */
+static int totalTests = 0;
+
+/** Number of test cases passed. */
+static int passedTests = 0;
+
+/** Macro to check the condition on a test case, keep counts of
+    passed/failed tests and report a message if the test fails. */
+#define TestCase( conditional ) {\
+  totalTests += 1; \
+  if ( conditional ) { \
+    passedTests += 1; \
+  } else { \
+    printf( "**** Failed unit test on line %d of %s\n", __LINE__, __FILE__ );    \
+  } \
+}
+
+/** Return true if A and B contain the same sequence of n bytes. */
+bool cmpBytes( byte const A[], byte const B[], int n )
+{
+  for ( int i = 0; i < n; i++ )
+    if ( A[ i ] != B[ i ] )
+      return false;
+  return true;
+}
+
+/** Return true if A and B contain the same sequence of n words. */
+bool cmpWords( word const A[], word const B[], int n )
+{
+  for ( int i = 0; i < n; i++ )
+    if ( A[ i ] != B[ i ] )
+      return false;
+  return true;
+}
+
+int main()
+{
+  // As you finish parts of your implementation, move this directive
+  // down past the blocks of code below.  That will enable tests of
+  // various functions you're expected to implement.
+  
+  ////////////////////////////////////////////////////////////////////////
+  // Test rotate()
+
+  {
+    TestCase( rotate( 0x00000000, 0 ) == 0x00000000 );
+    TestCase( rotate( 0x00000001, 0 ) == 0x00000001 );
+    TestCase( rotate( 0x00000002, 1 ) == 0x00000001 );
+    TestCase( rotate( 0x00000001, 1 ) == 0x80000000 );
+    TestCase( rotate( 0x00000003, 1 ) == 0x80000001 );
+    TestCase( rotate( 0x00000003, 2 ) == 0xC0000000 );
+    TestCase( rotate( 0x00000003, 30 ) == 0x0000000C );
+    
+    TestCase( rotate( 0xC5B2E719, 1 ) == 0xE2D9738C );
+    TestCase( rotate( 0xC5B2E719, 3 ) == 0x38B65CE3 );
+    TestCase( rotate( 0xC5B2E719, 5 ) == 0xCE2D9738 );
+    TestCase( rotate( 0xC5B2E719, 9 ) == 0x8CE2D973 );
+    TestCase( rotate( 0xC5B2E719, 25 ) == 0xD9738CE2 );
+    TestCase( rotate( 0xC5B2E719, 30 ) == 0x16CB9C67 );
+    TestCase( rotate( 0xC5B2E719, 31 ) == 0x8B65CE33 );
+  }
+
+  
+  ////////////////////////////////////////////////////////////////////////
+  // Test Sigma0()
+
+  {
+    TestCase( Sigma0( 0x7f73f56e ) == 0xfb7abf39 );
+    TestCase( Sigma0( 0x3843f775 ) == 0xfa64eb23 );
+    TestCase( Sigma0( 0x69993d41 ) == 0xd498063f );
+    TestCase( Sigma0( 0x6504af4e ) == 0xf18f3a62 );
+  }
+    
+  ////////////////////////////////////////////////////////////////////////
+  // Test Sigma1()
+
+  {
+    TestCase( Sigma1( 0x939ffb04 ) == 0xbd218e5a );
+    TestCase( Sigma1( 0xfe95bf90 ) == 0xfb3a4c36 );
+    TestCase( Sigma1( 0x384e36f9 ) == 0x1cdd4d81 );
+    TestCase( Sigma1( 0xac01d7bb ) == 0x192e5ab2 );
+  }
+  
+  ////////////////////////////////////////////////////////////////////////
+  // Test ChFunction()
+
+  {
+    TestCase( ChFunction( 0x79def691, 0xab3b9c90, 0xbd918958  ) == 0xad1b9dd8 );
+    TestCase( ChFunction( 0x5268f70d, 0x5bcfffa7, 0xcf0c3ffe  ) == 0xdf4cfff7 );
+    TestCase( ChFunction( 0xfee8f425, 0x866354ff, 0x41b47fd9  ) == 0x87745ffd );
+    TestCase( ChFunction( 0xfe90e88c, 0xc8b320ce, 0x4845fe4a  ) == 0xc8d536ce );
+  }
+  
+  ////////////////////////////////////////////////////////////////////////
+  // Test MaFunction()
+
+    
+  {
+    TestCase( MaFunction( 0xe5afb263, 0x781abeaa, 0x5904b9af  ) == 0x790ebaab );
+    TestCase( MaFunction( 0xa966dc65, 0xd26d3cc8, 0x724f11a6  ) == 0xf26f1ce4 );
+    TestCase( MaFunction( 0xe849f778, 0x58728955, 0x8cb0bbf9  ) == 0xc870bb79 );
+    TestCase( MaFunction( 0xb7ab6b96, 0xe4e5f31f, 0xdcad2b42  ) == 0xf4ad6b16 );
+  }
+
+  ////////////////////////////////////////////////////////////////////////
+  // Test makeState()
+
+  {
+    SHAState *state = makeState();
+
+    // Make sure all the initial hash values are right.
+    TestCase( state->h[ 0 ] == 0x6a09e667 );
+    TestCase( state->h[ 1 ] == 0xbb67ae85 );
+    TestCase( state->h[ 2 ] == 0x3c6ef372 );
+    TestCase( state->h[ 3 ] == 0xa54ff53a );
+    TestCase( state->h[ 4 ] == 0x510e527f );
+    TestCase( state->h[ 5 ] == 0x9b05688c );
+    TestCase( state->h[ 6 ] == 0x1f83d9ab );
+    TestCase( state->h[ 7 ] == 0x5be0cd19 );
+    
+    // Make sure nothing has been hashed yet.
+    TestCase( state->pcount == 0 );
+
+    freeState( state );
+  }
+  
+  ////////////////////////////////////////////////////////////////////////
+  // Test extendMessage()
+
+  {
+    // Same as test-01.txt
+    byte pending[] = { 0x54, 0x65, 0x73, 0x74, 0x20, 0x30, 0x31, 0x20,
+                       0x69, 0x73, 0x20, 0x6a, 0x75, 0x73, 0x74, 0x0a,
+                       0x74, 0x68, 0x65, 0x20, 0x72, 0x69, 0x67, 0x68,
+                       0x74, 0x20, 0x73, 0x69, 0x7a, 0x65, 0x0a, 0x66,
+                       0x6f, 0x72, 0x20, 0x39, 0x20, 0x62, 0x79, 0x74,
+                       0x65, 0x73, 0x0a, 0x61, 0x74, 0x20, 0x74, 0x68,
+                       0x65, 0x20, 0x65, 0x6e, 0x64, 0x2e, 0x0a, 0x80,
+                       0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0xb8 };
+    word w[ BLOCK_SIZE ];
+    
+    extendMessage( pending, w );
+
+    // Make sure we get the right w[] array.
+    word target[] = {
+      0x54657374, 0x20303120, 0x6973206a, 0x7573740a,
+      0x74686520, 0x72696768, 0x74207369, 0x7a650a66,
+      0x6f722039, 0x20627974, 0x65730a61, 0x74207468,
+      0x6520656e, 0x642e0a80, 0x00000000, 0x000001b8,
+      0xbcd65b32, 0x98745392, 0x8ba9e66e, 0xd55e9d0c,
+      0x2fe2d131, 0xd032228e, 0x27f7b59b, 0x839d1fca,
+      0xa66f0277, 0xe54634e0, 0x5fa4b714, 0x4a0e5a4e,
+      0x91bf5955, 0x72a22feb, 0x3baf353c, 0xdcb34ca2,
+      0x412ec649, 0x7e04f1ad, 0x35f85f8b, 0x220a5cdb,
+      0x55c41788, 0x51b79fc2, 0x50518cbd, 0x3bf5ccee,
+      0x6cab7e09, 0x89b184c7, 0x55d40a8c, 0x01edbd5c,
+      0xbac5ab73, 0xde476e72, 0x65a5d59b, 0xcf5544e9,
+      0x849fca7a, 0xe5e93d7a, 0x796ce9b5, 0xb5ec7c03,
+      0x8762d745, 0x7c90134b, 0xf9455a87, 0x8d37ef5d,
+      0x57d6c05c, 0x1e36e573, 0x9b5a47da, 0xd252c68e,
+      0xc86f5b98, 0x6248193c, 0xd4b99da5, 0x4dd19cac
+    };
+    TestCase( cmpWords( w, target, BLOCK_SIZE ) );
+  }
+  
+  {
+    // Block of random bytes.
+    byte pending[] = { 0xe1, 0x37, 0x27, 0x31, 0x7b, 0x1a, 0x21, 0x79,
+                       0x27, 0x2c, 0x60, 0x3d, 0x2c, 0x82, 0x89, 0x22,
+                       0x49, 0xfd, 0x2a, 0x38, 0x6c, 0x89, 0x87, 0x48,
+                       0x65, 0xb4, 0xd0, 0xb7, 0x7f, 0x34, 0x17, 0x69,
+                       0x11, 0xf2, 0xbc, 0xad, 0x0f, 0x40, 0x4f, 0x96,
+                       0x3b, 0x00, 0x74, 0x6e, 0x77, 0x94, 0xf5, 0x4c,
+                       0x6d, 0x67, 0x1c, 0xfd, 0xd3, 0xa7, 0x79, 0x93,
+                       0x8c, 0xe2, 0x85, 0xd0, 0x44, 0x64, 0x05, 0xbc };
+    word w[ BLOCK_SIZE ];
+    
+    extendMessage( pending, w );
+
+    // Make sure we get the right w[] array.
+    word target[] = {
+      0xe1372731, 0x7b1a2179, 0x272c603d, 0x2c828922,
+      0x49fd2a38, 0x6c898748, 0x65b4d0b7, 0x7f341769,
+      0x11f2bcad, 0x0f404f96, 0x3b00746e, 0x7794f54c,
+      0x6d671cfd, 0xd3a77993, 0x8ce285d0, 0x446405bc,
+      0x78b414be, 0x9f37e6b2, 0x0b1a12e8, 0xdcb4c50f,
+      0x656a9efa, 0x49cd70ef, 0x9f96b040, 0x0597613a,
+      0x7d4d67b1, 0x3d230ac4, 0xe235a679, 0xf17edd3c,
+      0x02b72349, 0x3a359983, 0x79b24d74, 0xb879593a,
+      0xb45633d4, 0x5ed1174e, 0x11c2cf57, 0xe89e5907,
+      0x69773976, 0xe9f6c9ba, 0x8096f155, 0xac7d52ef,
+      0xd02dfce9, 0xd803be0e, 0xdd33f32e, 0x5e689922,
+      0xdbc5fd54, 0x8f07bd0f, 0x9b971fd3, 0xe4c494b7,
+      0xcb4364d3, 0x34c7625f, 0xd36fc23e, 0x516f367f,
+      0xec6eed88, 0x0ab896d1, 0xaf16b1f4, 0x8810525f,
+      0x7d182dca, 0x89916039, 0xab1fb65d, 0xb4ab1aed,
+      0xf60b5640, 0x9fd5e029, 0x3bfa3bd1, 0x15dce46c
+    };
+    TestCase( cmpWords( w, target, BLOCK_SIZE ) );
+  }
+  
+  ////////////////////////////////////////////////////////////////////////
+  // Test compression()
+
+  {
+    SHAState *state = makeState();
+
+    // Copy a block of data to the pending array.  This is the same as
+    // the block created from test-01.txt
+    memcpy( state->pending,
+            (byte[]) { 0x54, 0x65, 0x73, 0x74, 0x20, 0x30, 0x31, 0x20,
+                       0x69, 0x73, 0x20, 0x6a, 0x75, 0x73, 0x74, 0x0a,
+                       0x74, 0x68, 0x65, 0x20, 0x72, 0x69, 0x67, 0x68,
+                       0x74, 0x20, 0x73, 0x69, 0x7a, 0x65, 0x0a, 0x66,
+                       0x6f, 0x72, 0x20, 0x39, 0x20, 0x62, 0x79, 0x74,
+                       0x65, 0x73, 0x0a, 0x61, 0x74, 0x20, 0x74, 0x68,
+                       0x65, 0x20, 0x65, 0x6e, 0x64, 0x2e, 0x0a, 0x80,
+                       0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0xb8 },
+            BLOCK_SIZE );
+    state->pcount = BLOCK_SIZE;
+
+    compression( state );
+
+    // Make sure we get the right hash values.
+    word target[] = { 0x8bc8a23c, 0xdb8b58f8, 0x3d04507e, 0x6394d394,
+                      0x8e150433, 0xc10f9e95, 0xbd672bc9, 0xae4eb1aa };
+    TestCase( cmpWords( state->h, target, HASH_WORDS ) );
+    freeState( state );
+  }
+
+  {
+    SHAState *state = makeState();
+
+    // A random block of bytes.
+    memcpy( state->pending,
+            (byte[]) { 0xd4, 0x5d, 0xf7, 0x9e, 0xbd, 0xeb, 0x37, 0x5b,
+                       0xa1, 0xe4, 0x29, 0xb5, 0xa7, 0xce, 0xdc, 0xe2,
+                       0x2e, 0x55, 0x53, 0xdd, 0xa1, 0xd7, 0xf1, 0x60,
+                       0x7b, 0xa8, 0x57, 0x7c, 0x8c, 0xb8, 0xf4, 0x90,
+                       0xbe, 0x89, 0xc1, 0x74, 0x89, 0x67, 0xf6, 0x79,
+                       0x54, 0x2a, 0x25, 0x9f, 0x01, 0x6a, 0xbb, 0xe0,
+                       0x58, 0x6b, 0x6a, 0xe5, 0xd5, 0x0c, 0x2c, 0x77,
+                       0x7f, 0xc1, 0x91, 0xc0, 0xb7, 0xae, 0x9d, 0x41 },
+            BLOCK_SIZE );
+    state->pcount = BLOCK_SIZE;
+
+    compression( state );
+
+    // Make sure we get the right hash result.
+    word target[] = { 0x39dabe6f, 0x902670da, 0xa55f6020, 0x0fbea197,
+                      0x8d84b25d, 0x3d675322, 0x80ecbbaf, 0x90694b5b };
+    TestCase( cmpWords( state->h, target, HASH_WORDS ) );
+    freeState( state );
+  }
+
+  ////////////////////////////////////////////////////////////////////////
+  // Test update()
+
+  {
+    SHAState *state = makeState();
+
+    // Add one byte of data to the state.
+    byte data[] = { 0x78 };
+    update( state, data, sizeof( data ) );
+
+    // This one data value should be stored in the pending array.
+    TestCase( state->pending[ 0 ] == 0x78 );
+    TestCase( state->pcount == 1 );
+
+    // The hash values should be unchanged.
+    TestCase( state->h[ 0 ] == 0x6a09e667 );
+    
+    freeState( state );
+  }
+  
+  {
+    SHAState *state = makeState();
+
+    // Update with enough data to run the compress funciton.
+    byte data[] = { 0x9a, 0x32, 0x8b, 0x81, 0xd4, 0x79, 0x8e, 0x96,
+                    0xaf, 0xa9, 0x27, 0xe2, 0x0d, 0x83, 0x5c, 0x1f,
+                    0x85, 0x74, 0x75, 0x53, 0x85, 0x58, 0x91, 0xd5,
+                    0xb5, 0x95, 0x00, 0x1c, 0xd0, 0x80, 0x8b, 0xd3,
+                    0xeb, 0x72, 0x16, 0xd3, 0xed, 0xb0, 0xf3, 0x06,
+                    0xf4, 0x5c, 0x4c, 0x93, 0x9a, 0x30, 0xf4, 0x7c,
+                    0xdb, 0x8f, 0xdf, 0x46, 0xee, 0x9d, 0x5a, 0xac,
+                    0xff, 0xf4, 0x34, 0x88, 0xed, 0xd2, 0x47, 0x7f };
+    update( state, data, sizeof( data ) );
+
+    // Hash values should be updated.
+    word target[] = { 0xb775ecaf, 0x9da2f984, 0x4af43d3b, 0x89ffe666,
+                      0x2c2a7362, 0x36e9126e, 0x6e15f3e8, 0x2a2472c8 };
+    TestCase( cmpWords( state->h, target, HASH_WORDS ) );
+    
+    // There shouldn't be any pending data in the buffer.
+    TestCase( state->pcount == 0 );
+
+    // Adding two more bytes should leave them in the pending array.
+    byte extra[] = { 0x41, 0x42 };
+    update( state, extra, sizeof( extra ) );
+
+    TestCase( state->pending[ 0 ] == 0x41 );
+    TestCase( state->pending[ 1 ] == 0x42 );
+    TestCase( state->pcount == 2 );
+
+    freeState( state );
+  }
+  
+  {
+    SHAState *state = makeState();
+
+    // Update with enough data to run the compress funciton twice.
+    byte data[] = { 0xad, 0xab, 0x3a, 0xab, 0xe2, 0x6d, 0xa9, 0xee,
+                    0xe2, 0xb8, 0x40, 0xea, 0xb8, 0xc5, 0x3a, 0x72,
+                    0x7d, 0x15, 0xa2, 0x28, 0xa9, 0xe4, 0x75, 0x03,
+                    0xd4, 0x8f, 0xc8, 0x42, 0xe9, 0x85, 0x2d, 0x7b,
+                    0xfb, 0xa7, 0x5c, 0xec, 0x22, 0x2f, 0x8a, 0x36,
+                    0x05, 0xb1, 0xfb, 0x82, 0x43, 0xe4, 0x62, 0x64,
+                    0xcb, 0x00, 0xff, 0xb2, 0xc6, 0x14, 0xe1, 0xb2,
+                    0xff, 0x4e, 0xdc, 0xcc, 0x8c, 0xbd, 0x21, 0x76,
+                    0x4d, 0xbb, 0xed, 0x83, 0x5a, 0xfc, 0xc0, 0x10,
+                    0x31, 0x1c, 0x33, 0xd0, 0x83, 0xfd, 0xe4, 0x67,
+                    0x83, 0xc1, 0xb6, 0xc7, 0x62, 0xbc, 0xda, 0xed,
+                    0x5a, 0x14, 0x18, 0x6c, 0x07, 0xc4, 0x3a, 0xf7,
+                    0x7e, 0xb2, 0x73, 0x61, 0x9f, 0x9c, 0x57, 0x22,
+                    0x7a, 0x61, 0xbb, 0x4b, 0x34, 0xd9, 0x17, 0x40,
+                    0xea, 0x72, 0x45, 0x5b, 0xfc, 0x3f, 0x03, 0x5f,
+                    0x83, 0x6f, 0x69, 0xef, 0x16, 0x1d, 0xa0, 0x74 };
+    update( state, data, sizeof( data ) );
+
+    // Hash values should be updated.
+    word target[] = { 0x3adb65cd, 0x0a0e82fa, 0x1f1416e5, 0x552a2bc7,
+                      0x8fbdde82, 0x07c1c95c, 0xc388a291, 0x290b1560 };
+    TestCase( cmpWords( state->h, target, HASH_WORDS ) );
+    
+    // There shouldn't be any pending data in the buffer.
+    TestCase( state->pcount == 0 );
+    
+    freeState( state );
+  }
+  
+  ////////////////////////////////////////////////////////////////////////
+  // Test digest()
+
+  {
+    SHAState *state = makeState();
+
+    // Same initial block as test input-01.txt
+    byte data[] = { 0x54, 0x65, 0x73, 0x74, 0x20, 0x30, 0x31, 0x20,
+                    0x69, 0x73, 0x20, 0x6a, 0x75, 0x73, 0x74, 0x0a,
+                    0x74, 0x68, 0x65, 0x20, 0x72, 0x69, 0x67, 0x68,
+                    0x74, 0x20, 0x73, 0x69, 0x7a, 0x65, 0x0a, 0x66,
+                    0x6f, 0x72, 0x20, 0x39, 0x20, 0x62, 0x79, 0x74,
+                    0x65, 0x73, 0x0a, 0x61, 0x74, 0x20, 0x74, 0x68,
+                    0x65, 0x20, 0x65, 0x6e, 0x64, 0x2e, 0x0a };
+    update( state, data, sizeof( data ) );
+
+    word hash[ HASH_WORDS ];
+    digest( state, hash );
+
+    word target[] = { 0x8bc8a23c, 0xdb8b58f8, 0x3d04507e, 0x6394d394,
+                      0x8e150433, 0xc10f9e95, 0xbd672bc9, 0xae4eb1aa };
+    TestCase( cmpWords( hash, target, HASH_WORDS ) );
+    freeState( state );
+  }
+
+
+  {
+    SHAState *state = makeState();
+
+    // Same input data as test input-02.txt
+    byte data[] = { 0x41, 0x20, 0x73, 0x68, 0x6f, 0x72, 0x74, 0x20,
+                    0x66, 0x69, 0x6c, 0x65, 0x2e, 0x20, 0x49, 0x74,
+                    0x20, 0x77, 0x69, 0x6c, 0x6c, 0x20, 0x6e, 0x65,
+                    0x65, 0x64, 0x0a, 0x73, 0x6f, 0x6d, 0x20, 0x7a,
+                    0x65, 0x72, 0x6f, 0x20, 0x70, 0x61, 0x64, 0x64,
+                    0x69, 0x6e, 0x67, 0x2e, 0x0a };
+    update( state, data, sizeof( data ) );
+
+    word hash[ HASH_WORDS ];
+    digest( state, hash );
+
+    word target[] = { 0x03ec0219, 0x58204092, 0x98de27f6, 0x020ffd7c,
+                      0x3f9578a9, 0x45550d0e, 0x476d91a8, 0x68ba425d };
+    TestCase( cmpWords( hash, target, HASH_WORDS ) );
+    freeState( state );
+  }
+
+#ifdef DISABLE_TESTS
+
+  // Once you move the #ifdef DISABLE_TESTS to here, you've enabled
+  // all the tests.
+
+#endif
+  
+ // Report a message if some tests are still disabled.
+  if ( totalTests < EXPECTED_TOTAL )
+    printf( "** %d of %d unit tests currently enabled.\n", totalTests,
+            EXPECTED_TOTAL );
+
+  // Exit successfully if all tests are enabled and they all pass.
+  if ( passedTests != EXPECTED_TOTAL )
+    return EXIT_FAILURE;
+  else {
+    printf( "** All unit tests passed\n" );
+    return EXIT_SUCCESS;
+  }
+}
